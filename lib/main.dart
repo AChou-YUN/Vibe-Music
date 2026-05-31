@@ -1,12 +1,20 @@
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:window_manager/window_manager.dart';
 import 'app.dart';
+import 'core/services/backend_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
+
+  // Auto-start backend server
+  await BackendService.start();
+
+  // Stop backend when app exits
+  ProcessSignal.sigint.watch().listen((_) => BackendService.stop());
 
   await windowManager.ensureInitialized();
   const windowOptions = WindowOptions(
