@@ -1,0 +1,48 @@
+﻿# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Platform build outputs
+*.exe
+*.dll
+*.so
+*.dylib
+*.apk
+*.aab
+*.ipa
+
+# Pub
+.pub-cache/
+pubspec.lock
+
+# Hive local data (runtime cache, not source)
+*.hive
+*.lock
+
+# Node.js backend
+backend/node_modules/
+backend/package-lock.json
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.lnk
+
+# Logs
+*.log
+logs/
+
+# Secrets / auth
+*.pem
+*.key
+.env
+.env.*
