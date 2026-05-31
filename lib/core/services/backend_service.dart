@@ -7,8 +7,6 @@ class BackendService {
 
   static bool get isRunning => _started;
 
-  /// Start the NeteaseCloudMusicApi backend server.
-  /// Returns a stream of status messages for UI display.
   static Future<bool> start({int port = 3000, void Function(String)? onLog}) async {
     void log(String msg) {
       DebugLog.log(msg);
@@ -18,7 +16,7 @@ class BackendService {
     // 1. Check if already running on port
     log('Checking port $port...');
     if (await _isPortOpen(port)) {
-      log('Backend already running on port $port');
+      log('Port $port is open — server already running');
       _started = true;
       return true;
     }
@@ -29,61 +27,56 @@ class BackendService {
       log('ERROR: backend/server.js not found');
       return false;
     }
-    log('Backend dir: $backendDir');
+    log('Found backend at: $backendDir');
 
-    // 3. Find node executable
-    final nodeExe = await _findNode();
-    if (nodeExe == null) {
-      log('ERROR: node.exe not found');
-      return false;
-    }
-    log('Node: $nodeExe');
+    // 3. Find node
+    final nodeExe = await _findNode() ?? 'node';
+    log('Using node: $nodeExe');
 
-    // 4. Start the server
-    log('Starting server...');
+    // 4. Start server
+    log('Starting node server.js...');
     try {
       _process = await Process.start(
         nodeExe,
         ['server.js'],
         workingDirectory: backendDir,
-        mode: ProcessStartMode.normal,
+        mode: ProcessStartMode.detachedWithStdio,
       );
 
-      // Listen to stdout/stderr for logging
       _process!.stdout.transform(const SystemEncoding().decoder).listen((line) {
-        log('[server] ${line.trim()}');
+        final trimmed = line.trim();
+        if (trimmed.isNotEmpty) log(trimmed);
       });
       _process!.stderr.transform(const SystemEncoding().decoder).listen((line) {
-        log('[server:err] ${line.trim()}');
+        final trimmed = line.trim();
+        if (trimmed.isNotEmpty) log('ERR: $trimmed');
       });
 
-      // 5. Wait for port to become available
-      log('Waiting for server to be ready...');
+      // 5. Wait for port
+      log('Waiting for port $port...');
       for (int i = 0; i < 20; i++) {
         await Future.delayed(const Duration(milliseconds: 500));
         if (await _isPortOpen(port)) {
           _started = true;
-          log('Backend started OK (pid=${_process!.pid})');
+          log('Server is ready on port $port');
           return true;
         }
+        if (i % 4 == 3) log('Still waiting... (${(i + 1) ~/ 2}s)');
       }
 
-      log('ERROR: server did not start in time');
+      log('ERROR: server did not respond in 10s');
       _process?.kill();
       _process = null;
       return false;
     } catch (e) {
-      log('ERROR: start failed: $e');
+      log('ERROR: $e');
       return false;
     }
   }
 
   static void stop() {
     if (_process != null) {
-      try {
-        _process!.kill();
-        DebugLog.log('Backend: stopped');
-      } catch (_) {}
+      try { _process!.kill(); } catch (_) {}
       _process = null;
       _started = false;
     }
@@ -104,7 +97,7 @@ class BackendService {
     final candidates = [
       '${Directory.current.path}\\backend',
       '$exeDir\\backend',
-      '$exeDir\\..\\backend',
+      '${exeDir}\\..\\backend',
     ];
     for (final dir in candidates) {
       if (await File('$dir\\server.js').exists()) return dir;
@@ -113,7 +106,6 @@ class BackendService {
   }
 
   static Future<String?> _findNode() async {
-    // Try 'where.exe node' first (Windows)
     try {
       final result = await Process.run('where.exe', ['node']);
       if (result.exitCode == 0) {
@@ -124,16 +116,13 @@ class BackendService {
         }
       }
     } catch (_) {}
-
-    // Fallback: search PATH manually
     final pathVar = Platform.environment['PATH'] ?? '';
     for (final dir in pathVar.split(';')) {
       if (dir.isEmpty) continue;
       final nodePath = '$dir\\node.exe';
       if (File(nodePath).existsSync()) return nodePath;
     }
-
-    // Last resort
     return 'node';
   }
 }
+
