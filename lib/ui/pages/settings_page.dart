@@ -27,8 +27,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    _checkServer();
     _loadCacheInfo();
+    // Defer server check to after build
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkServer());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Re-check server every time this page becomes visible
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _checkServer();
+    });
   }
 
   Future<void> _checkServer() async {
@@ -631,6 +641,7 @@ class _NeteaseLoginDialogState extends ConsumerState<_NeteaseLoginDialog> {
     }
   }
 }
+
 
 
 

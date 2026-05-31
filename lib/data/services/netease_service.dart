@@ -79,11 +79,12 @@ class NeteaseApiService {
 
   Future<bool> checkServer() async {
     try {
-      final body = await _httpGet('$_baseUrl/search?keywords=test&limit=1');
-      final data = jsonDecode(body);
-      return data['code'] == 200;
+      // Quick port check first
+      final socket = await Socket.connect('127.0.0.1', 3000, timeout: const Duration(seconds: 2));
+      await socket.close();
+      return true;
     } catch (e) {
-      DebugLog.log('Netease server check FAILED: $e');
+      DebugLog.log('Server check failed: $e');
       return false;
     }
   }
@@ -479,6 +480,7 @@ class NeteaseApiService {
 
   void dispose() { _client.close(); }
 }
+
 
 
 
