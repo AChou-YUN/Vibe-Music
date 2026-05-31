@@ -1,4 +1,5 @@
 ﻿import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import '../utils/debug_log.dart';
 
 class BackendService {
@@ -13,58 +14,68 @@ class BackendService {
       onLog?.call(msg);
     }
 
-    // 1. Check if already running on port
+    // 1. Already running?
     log('Checking port $port...');
     if (await _isPortOpen(port)) {
-      log('Port $port is open — server already running');
+      log('Server already running on port $port ✓');
       _started = true;
       return true;
     }
 
-    // 2. Find backend directory
+    // 2. Find node.exe
+    final nodeExe = await _findNode();
+    if (nodeExe == null) {
+      log('ERROR: node.exe not found in PATH');
+      return false;
+    }
+    log('Node found: $nodeExe');
+
+    // 3. Find backend directory
     final backendDir = await _findBackendDir();
     if (backendDir == null) {
       log('ERROR: backend/server.js not found');
       return false;
     }
-    log('Found backend at: $backendDir');
+    log('Backend dir: $backendDir');
 
-    // 3. Find node
-    final nodeExe = await _findNode() ?? 'node';
-    log('Using node: $nodeExe');
+    // Verify node_modules exists
+    final nodeModules = Directory('$backendDir\\node_modules');
+    if (!await nodeModules.exists()) {
+      log('ERROR: node_modules missing — run npm install');
+      return false;
+    }
 
     // 4. Start server
-    log('Starting node server.js...');
+    log('Starting server...');
     try {
       _process = await Process.start(
         nodeExe,
         ['server.js'],
         workingDirectory: backendDir,
-        mode: ProcessStartMode.detachedWithStdio,
+        mode: ProcessStartMode.normal,
       );
 
-      _process!.stdout.transform(const SystemEncoding().decoder).listen((line) {
-        final trimmed = line.trim();
-        if (trimmed.isNotEmpty) log(trimmed);
-      });
-      _process!.stderr.transform(const SystemEncoding().decoder).listen((line) {
-        final trimmed = line.trim();
-        if (trimmed.isNotEmpty) log('ERR: $trimmed');
+      _process!.exitCode.then((code) {
+        if (!_started) {
+          log('Server exited with code $code');
+        }
       });
 
       // 5. Wait for port
       log('Waiting for port $port...');
-      for (int i = 0; i < 20; i++) {
+      for (int i = 0; i < 30; i++) {
         await Future.delayed(const Duration(milliseconds: 500));
         if (await _isPortOpen(port)) {
           _started = true;
-          log('Server is ready on port $port');
+          log('Server ready on port $port ✓');
           return true;
         }
-        if (i % 4 == 3) log('Still waiting... (${(i + 1) ~/ 2}s)');
+        if (i > 0 && i % 4 == 0) {
+          log('Waiting... (${i ~/ 2}s)');
+        }
       }
 
-      log('ERROR: server did not respond in 10s');
+      log('ERROR: server did not start in 15s');
       _process?.kill();
       _process = null;
       return false;
@@ -93,19 +104,52 @@ class BackendService {
   }
 
   static Future<String?> _findBackendDir() async {
+    // Collect all possible base directories
+    final bases = <String>[];
+
+    // Current working directory
+    bases.add(Directory.current.path);
+
+    // Executable directory (for release builds)
     final exeDir = File(Platform.resolvedExecutable).parent.path;
-    final candidates = [
-      '${Directory.current.path}\\backend',
-      '$exeDir\\backend',
-      '${exeDir}\\..\\backend',
-    ];
-    for (final dir in candidates) {
-      if (await File('$dir\\server.js').exists()) return dir;
+    bases.add(exeDir);
+
+    // One level up from exe (build/windows/x64/runner/Release -> project root)
+    bases.add('$exeDir\\..');
+    bases.add('$exeDir\\..\\..');
+    bases.add('$exeDir\\..\\..\\..');
+    bases.add('$exeDir\\..\\..\\..\\..');
+    bases.add('$exeDir\\..\\..\\..\\..\\..');
+
+    // Try each base + /backend
+    for (final base in bases) {
+      try {
+        final dir = Directory(base).absolute.path;
+        final serverJs = File('$dir\\backend\\server.js');
+        if (await serverJs.exists()) {
+          return '$dir\\backend';
+        }
+      } catch (_) {}
     }
+
+    // Last resort: search from documents
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      final searchDir = Directory('${docs.path}\\Codex');
+      if (await searchDir.exists()) {
+        await for (final entity in searchDir.list(recursive: true, followLinks: false)) {
+          if (entity is File && entity.path.endsWith('backend\\server.js')) {
+            return entity.parent.path;
+          }
+        }
+      }
+    } catch (_) {}
+
     return null;
   }
 
   static Future<String?> _findNode() async {
+    // Method 1: where.exe
     try {
       final result = await Process.run('where.exe', ['node']);
       if (result.exitCode == 0) {
@@ -116,13 +160,25 @@ class BackendService {
         }
       }
     } catch (_) {}
+
+    // Method 2: PATH scan
     final pathVar = Platform.environment['PATH'] ?? '';
     for (final dir in pathVar.split(';')) {
       if (dir.isEmpty) continue;
       final nodePath = '$dir\\node.exe';
       if (File(nodePath).existsSync()) return nodePath;
     }
-    return 'node';
+
+    // Method 3: common locations
+    final common = [
+      '${Platform.environment['PROGRAMFILES']}\\nodejs\\node.exe',
+      '${Platform.environment['LOCALAPPDATA']}\\Programs\\node\\node.exe',
+      'D:\\tec_use\\node_js\\node.exe',
+    ];
+    for (final p in common) {
+      if (p.isNotEmpty && File(p).existsSync()) return p;
+    }
+
+    return null;
   }
 }
-

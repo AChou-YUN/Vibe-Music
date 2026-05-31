@@ -49,24 +49,17 @@ class _VibeMusicAppState extends State<VibeMusicApp> {
   }
 
   Future<void> _init() async {
-    _log('Initializing Hive...');
-    await Future.delayed(const Duration(milliseconds: 300));
+    _log('Initializing...');
+    await Future.delayed(const Duration(milliseconds: 200));
 
-    _log('Checking backend server...');
-    final ok = await BackendService.start(
-      onLog: (msg) => _log(msg),
-    );
+    final ok = await BackendService.start(onLog: _log);
 
     if (!ok) {
-      _log('Backend failed to start!');
       if (mounted) setState(() => _failed = true);
       return;
     }
 
-    _log('Backend ready!');
-    // Give user a moment to see the success message
-    await Future.delayed(const Duration(milliseconds: 800));
-
+    await Future.delayed(const Duration(milliseconds: 500));
     if (mounted) setState(() => _ready = true);
   }
 
@@ -89,10 +82,7 @@ class _VibeMusicAppState extends State<VibeMusicApp> {
               failed: _failed,
               onRetry: _failed
                   ? () {
-                      setState(() {
-                        _failed = false;
-                        _logs.clear();
-                      });
+                      setState(() { _failed = false; _logs.clear(); });
                       _init();
                     }
                   : null,
@@ -116,87 +106,84 @@ class _SplashScreen extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Logo
             Container(
               width: 80, height: 80,
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(16),
-              ),
+              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
               child: const Icon(Icons.music_note_rounded, size: 40, color: AppColors.accent),
             ),
             const SizedBox(height: 24),
             const Text('Vibe Music', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
             const SizedBox(height: 32),
-
-            // Status
-            if (!failed) ...[
-              const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent)),
-            ] else ...[
+            if (!failed)
+              const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent))
+            else
               const Icon(Icons.error_outline_rounded, size: 28, color: AppColors.error),
-            ],
             const SizedBox(height: 20),
-
-            // Log output
+            // Log panel
             Container(
-              width: 400,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (final log in logs.take(8))
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Row(
-                        children: [
-                          Icon(
-                            log.contains('ERROR') || log.contains('failed')
-                                ? Icons.close_rounded
-                                : log.contains('OK') || log.contains('ready') || log.contains('running')
-                                    ? Icons.check_circle_rounded
-                                    : Icons.arrow_right_rounded,
-                            size: 14,
-                            color: log.contains('ERROR') || log.contains('failed')
-                                ? AppColors.error
-                                : log.contains('OK') || log.contains('ready') || log.contains('running')
-                                    ? Colors.greenAccent
-                                    : AppColors.textDisabled,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              log,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontFamily: 'Consolas',
-                                color: log.contains('ERROR') || log.contains('failed')
-                                    ? AppColors.error
-                                    : AppColors.textSecondary,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+              width: 440,
+              constraints: const BoxConstraints(maxHeight: 200),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(8)),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final log in logs)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 3),
+                        child: Row(
+                          children: [
+                            Icon(
+                              log.contains('ERROR') || log.contains('failed') ? Icons.close_rounded
+                                  : log.contains('✓') || log.contains('ready') ? Icons.check_circle_rounded
+                                  : Icons.arrow_right_rounded,
+                              size: 13,
+                              color: log.contains('ERROR') || log.contains('failed') ? AppColors.error
+                                  : log.contains('✓') || log.contains('ready') ? Colors.greenAccent
+                                  : AppColors.textDisabled,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 6),
+                            Expanded(child: Text(log, style: TextStyle(
+                              fontSize: 11, fontFamily: 'Consolas',
+                              color: log.contains('ERROR') || log.contains('failed') ? AppColors.error : AppColors.textSecondary,
+                            ), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                          ],
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
-
-            if (failed) ...[
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh_rounded, size: 16),
-                label: const Text('Retry'),
-                style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
-              ),
-            ],
+            const SizedBox(height: 20),
+            // Buttons
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Exit button (always visible)
+                OutlinedButton.icon(
+                  onPressed: () {
+                    BackendService.stop();
+                    exit(0);
+                  },
+                  icon: const Icon(Icons.close_rounded, size: 16),
+                  label: const Text('Exit'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                    side: const BorderSide(color: AppColors.divider),
+                  ),
+                ),
+                if (failed) ...[
+                  const SizedBox(width: 12),
+                  FilledButton.icon(
+                    onPressed: onRetry,
+                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                    label: const Text('Retry'),
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
+                  ),
+                ],
+              ],
+            ),
           ],
         ),
       ),
