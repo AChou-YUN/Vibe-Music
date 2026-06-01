@@ -1,7 +1,8 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'dart:io';
 import 'package:window_manager/window_manager.dart';
 import 'app.dart';
 import 'core/theme/app_theme.dart';
@@ -9,7 +10,11 @@ import 'core/services/backend_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
+  // Use temp directory for Hive storage (sandbox-safe)
+  final tmpPath = Platform.environment['TEMP'] ?? 'C:\\Windows\\Temp';
+  final hiveDir = Directory('$tmpPath\\VibeMusic');
+  if (!hiveDir.existsSync()) hiveDir.createSync(recursive: true);
+  Hive.init(hiveDir.path);
 
   await windowManager.ensureInitialized();
   const windowOptions = WindowOptions(
@@ -33,7 +38,7 @@ class VibeMusicApp extends StatefulWidget {
   State<VibeMusicApp> createState() => _VibeMusicAppState();
 }
 
-class _VibeMusicAppState extends State<VibeMusicApp> {
+class _VibeMusicAppState extends State<VibeMusicApp> with WidgetsBindingObserver implements WindowListener {
   bool _ready = false;
   bool _failed = false;
   final List<String> _logs = [];
@@ -41,6 +46,9 @@ class _VibeMusicAppState extends State<VibeMusicApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    windowManager.addListener(this);
+    windowManager.setPreventClose(true);
     _init();
   }
 
@@ -64,7 +72,42 @@ class _VibeMusicAppState extends State<VibeMusicApp> {
   }
 
   @override
+  void onWindowClose() {
+    BackendService.stop();
+    windowManager.destroy();
+  }
+
+  @override
+  void onWindowDestroyed() {
+    exit(0);
+  }
+
+  // Unused WindowListener callbacks
+  @override void onWindowEvent(String eventName) {}
+  @override void onWindowFocus() {}
+  @override void onWindowBlur() {}
+  @override void onWindowMaximize() {}
+  @override void onWindowUnmaximize() {}
+  @override void onWindowMinimize() {}
+  @override void onWindowRestore() {}
+  @override void onWindowResize() {}
+  @override void onWindowResized() {}
+  @override void onWindowMove() {}
+  @override void onWindowMoved() {}
+  @override void onWindowEnterFullScreen() {}
+  @override void onWindowLeaveFullScreen() {}
+  @override void onWindowDocked() {}
+  @override void onWindowUndocked() {}
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Only stop backend when app is fully closing (detached), not on inactive/paused
+    // inactive fires on any alt-tab which would kill the server unnecessarily
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     BackendService.stop();
     super.dispose();
   }
@@ -136,11 +179,11 @@ class _SplashScreen extends StatelessWidget {
                           children: [
                             Icon(
                               log.contains('ERROR') || log.contains('failed') ? Icons.close_rounded
-                                  : log.contains('✓') || log.contains('ready') ? Icons.check_circle_rounded
+                                  : log.contains('ready') || log.contains('responding') ? Icons.check_circle_rounded
                                   : Icons.arrow_right_rounded,
                               size: 13,
                               color: log.contains('ERROR') || log.contains('failed') ? AppColors.error
-                                  : log.contains('✓') || log.contains('ready') ? Colors.greenAccent
+                                  : log.contains('ready') || log.contains('responding') ? Colors.greenAccent
                                   : AppColors.textDisabled,
                             ),
                             const SizedBox(width: 6),

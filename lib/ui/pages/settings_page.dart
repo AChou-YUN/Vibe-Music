@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,12 +24,27 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   List<CacheItem> _cacheItems = [];
   bool _cacheLoading = true;
 
+  bool _userLoaded = false;
+
   @override
   void initState() {
     super.initState();
     _loadCacheInfo();
-    // Defer server check to after build
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkServer());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _checkServer();
+      await _loadUserInfo();
+    });
+  }
+
+  Future<void> _loadUserInfo() async {
+    final netease = ref.read(neteaseServiceProvider);
+    // Wait for cookie loading to complete (may be in progress from constructor)
+    await netease.ready;
+    // Register callback for future reloads (e.g. after re-login)
+    netease.onUserLoaded = () {
+      if (mounted) setState(() {});
+    };
+    if (mounted) setState(() {});
   }
 
   @override

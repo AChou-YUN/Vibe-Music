@@ -1,4 +1,5 @@
-﻿import 'dart:convert';
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/track.dart';
@@ -37,10 +38,20 @@ class NeteaseApiService {
   String? _cookie;
   int? _userId;
   String? _nickname;
+  final _readyCompleter = Completer<void>();
+  Future<void> get ready => _readyCompleter.future;
+  Function()? onUserLoaded;
 
   NeteaseApiService() {
     _client.connectionTimeout = const Duration(seconds: 10);
     _client.badCertificateCallback = (_, __, ___) => true;
+    // Bypass system proxy for localhost (fixes SOCKS5 proxy issues)
+    _client.findProxy = (uri) {
+      if (uri.host == '127.0.0.1' || uri.host == 'localhost') {
+        return 'DIRECT';
+      }
+      return 'DIRECT'; // All requests go direct (no proxy)
+    };
     _loadSavedCookie();
   }
 
@@ -69,6 +80,8 @@ class NeteaseApiService {
     } catch (e) {
       DebugLog.log('Failed to load cookie: $e');
     }
+    if (!_readyCompleter.isCompleted) _readyCompleter.complete();
+    onUserLoaded?.call();
   }
 
   static String _fixUrl(String? url) {
@@ -467,19 +480,31 @@ class NeteaseApiService {
   }
 
   Future<String> _httpGet(String url) async {
-    DebugLog.log('HTTP GET: ${url.substring(0, url.length.clamp(0, 120))}');
-    final uri = Uri.parse(url);
-    final request = await _client.getUrl(uri);
-    request.headers.set('User-Agent', 'VibeMusic/1.0');
-    request.headers.set('Accept', '*/*');
-    final response = await request.close();
-    final body = await response.transform(utf8.decoder).join();
-    DebugLog.log('HTTP ${response.statusCode}: ${body.length} bytes');
-    return body;
+    DebugLog.log('HTTP GET: ${url.substring(0, url.length.clamp(0, 100))}');
+    try {
+      final uri = Uri.parse(url);
+      final client = HttpClient();
+      client.connectionTimeout = const Duration(seconds: 10);
+      client.badCertificateCallback = (_, __, ___) => true;
+      client.findProxy = (_) => 'DIRECT';
+      final request = await client.getUrl(uri);
+      request.headers.set('User-Agent', 'VibeMusic/1.0');
+      request.headers.set('Accept', '*/*');
+      final response = await request.close();
+      final body = await response.transform(utf8.decoder).join();
+      client.close();
+      DebugLog.log('HTTP ${response.statusCode}: ${body.length} bytes');
+      return body;
+    } catch (e) {
+      DebugLog.log('HTTP ERROR: $e');
+      rethrow;
+    }
   }
 
   void dispose() { _client.close(); }
 }
+
+
 
 
 

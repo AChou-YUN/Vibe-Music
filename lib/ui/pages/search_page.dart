@@ -36,13 +36,20 @@ class SearchPage extends ConsumerStatefulWidget {
 
 class _SearchPageState extends ConsumerState<SearchPage> {
   final _controller = TextEditingController();
+  final _focusNode = FocusNode();
   String _lastQuery = '';
   List<String> _history = [];
+  bool _showHistory = true;
 
   @override
   void initState() {
     super.initState();
     _loadHistory();
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus && _controller.text.isEmpty) {
+        setState(() => _showHistory = true);
+      }
+    });
   }
 
   Future<void> _loadHistory() async {
@@ -52,8 +59,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   void _search() {
     final q = _controller.text.trim();
-    if (q.isNotEmpty && q != _lastQuery) {
+    if (q.isNotEmpty) {
       _lastQuery = q;
+      _showHistory = false;
       DebugLog.log('=== Search: "$q" ===');
       ref.read(neteaseSearchQueryProvider.notifier).state = q;
       CacheService.addSearchHistory(q);
@@ -61,8 +69,16 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     }
   }
 
+  void _clearSearch() {
+    _controller.clear();
+    _lastQuery = '';
+    _showHistory = true;
+    ref.read(neteaseSearchQueryProvider.notifier).state = '';
+    _focusNode.requestFocus();
+  }
+
   @override
-  void dispose() { _controller.dispose(); super.dispose(); }
+  void dispose() { _controller.dispose(); _focusNode.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
@@ -80,7 +96,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           const SizedBox(height: 16),
           Row(children: [
             Expanded(child: TextField(
-              controller: _controller, autofocus: true, onSubmitted: (_) => _search(),
+              controller: _controller, focusNode: _focusNode, autofocus: true, onSubmitted: (_) => _search(), onChanged: (_) { if (_controller.text.isEmpty && mounted) setState(() => _showHistory = true); },
               decoration: InputDecoration(hintText: 'Search songs (NetEase)...', hintStyle: const TextStyle(color: AppColors.textDisabled), prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textSecondary, size: 18), filled: true, fillColor: AppColors.surfaceLight, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(vertical: 10), isDense: true),
             )),
             const SizedBox(width: 8),
@@ -89,18 +105,27 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           const SizedBox(height: 16),
           Expanded(child: resultsAsync.when(
             data: (results) {
+              if (_showHistory) return _buildHistory();
               if (results.isEmpty && _lastQuery.isNotEmpty) {
                 return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
                   const Icon(Icons.search_off_rounded, size: 48, color: AppColors.textDisabled),
                   const SizedBox(height: 12),
                   Text('No results for "$_lastQuery"', style: const TextStyle(color: AppColors.textSecondary)),
                   const SizedBox(height: 8),
-                  TextButton(onPressed: _search, child: const Text('Retry', style: TextStyle(color: AppColors.accent))),
+                  TextButton(onPressed: _clearSearch, child: const Text('Back to History', style: TextStyle(color: AppColors.accent))),
                   TextButton(onPressed: () => _showLogs(context), child: const Text('View Logs', style: TextStyle(color: AppColors.textDisabled, fontSize: 11))),
                 ]));
               }
               if (results.isEmpty) return _buildHistory();
-              return ListView.builder(itemCount: results.length, itemBuilder: (context, index) => _SearchResultTile(result: results[index]));
+              return Column(children: [
+                Row(children: [
+                  TextButton.icon(onPressed: _clearSearch, icon: const Icon(Icons.arrow_back_rounded, size: 16), label: const Text('History'), style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4))),
+                  const Spacer(),
+                  Text('${results.length} results', style: const TextStyle(color: AppColors.textDisabled, fontSize: 11)),
+                ]),
+                const SizedBox(height: 4),
+                Expanded(child: ListView.builder(itemCount: results.length, itemBuilder: (context, index) => _SearchResultTile(result: results[index]))),
+              ]);
             },
             loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent, strokeWidth: 2)),
             error: (e, _) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [

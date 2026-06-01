@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import '../pages/library_page.dart';
 import '../pages/playlists_page.dart';
 import '../pages/search_page.dart';
 import '../pages/settings_page.dart';
+import '../../core/services/backend_service.dart';
 
 /// Current tab index
 final currentTabProvider = StateProvider<int>((ref) => 0);
@@ -100,7 +102,7 @@ class _WindowButtons extends StatelessWidget {
             isMaximized ? await windowManager.unmaximize() : await windowManager.maximize();
           },
         ),
-        _WindowButton(icon: Icons.close_rounded, isClose: true, onTap: () => windowManager.close()),
+        _WindowButton(icon: Icons.close_rounded, isClose: true, onTap: () { BackendService.stop(); windowManager.destroy(); exit(0); }),
       ],
     );
   }

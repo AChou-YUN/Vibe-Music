@@ -1,7 +1,8 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/track.dart';
 import '../../core/utils/debug_log.dart';
 import 'cache_service.dart';
@@ -106,7 +107,12 @@ class AudioPlayerService {
 
       await _player.stop();
       if (path.startsWith('http://') || path.startsWith('https://')) {
-        await _player.setSourceUrl(path);
+        final localPath = await _downloadToFile(path, track.id ?? 'silent');
+        if (localPath != null) {
+          await _player.setSourceDeviceFile(localPath);
+        } else {
+          await _player.setSourceUrl(path);
+        }
       } else {
         await _player.setSourceDeviceFile(path);
       }
@@ -152,6 +158,7 @@ class AudioPlayerService {
       final uri = Uri.parse('http://127.0.0.1:3000/song/url?id=$songId&br=320000');
       final client = HttpClient();
       client.connectionTimeout = const Duration(seconds: 5);
+      client.findProxy = (_) => 'DIRECT';
       final request = await client.getUrl(uri);
       request.headers.set('User-Agent', 'VibeMusic/1.0');
       final response = await request.close();
@@ -303,7 +310,7 @@ class AudioPlayerService {
 
     try {
       var path = track.filePath;
-      DebugLog.log('Play: "${track.title}"');
+      DebugLog.log('Play: "${track.title}" path=$path');
       await _player.stop();
 
       if (path.startsWith('http')) {
@@ -318,8 +325,17 @@ class AudioPlayerService {
         }
       }
 
+      // Windows Media Foundation prefers HTTPS
       if (path.startsWith('http://') || path.startsWith('https://')) {
-        await _player.play(UrlSource(path));
+        // Download to temp file first — WMF can't reach external servers on some systems
+        final localPath = await _downloadToFile(path, track.id ?? 'temp');
+        if (localPath != null) {
+          DebugLog.log('Playing local: $localPath');
+          await _player.play(DeviceFileSource(localPath));
+        } else {
+          DebugLog.log('Download failed, trying URL directly');
+          await _player.play(UrlSource(path));
+        }
       } else {
         await _player.play(DeviceFileSource(path));
       }
@@ -337,6 +353,73 @@ class AudioPlayerService {
   Future<void> setVolume(double v) async {
     _volume = v.clamp(0.0, 1.0);
     await _player.setVolume(_volume);
+  }
+
+  // Cache directory for downloaded audio files
+  Directory? _cacheDir;
+  final Map<String, String> _downloadCache = {};
+
+  /// Download audio URL to local temp file using HttpClient with direct proxy.
+  /// WMF can't reach external servers when system proxy is broken (VPN residue).
+  Future<String?> _downloadToFile(String url, String id) async {
+    // Check memory cache first
+    if (_downloadCache.containsKey(id)) {
+      final cached = File(_downloadCache[id]!);
+      if (await cached.exists()) return cached.path;
+    }
+
+    try {
+      if (_cacheDir == null) {
+        final tmp = await getTemporaryDirectory();
+        _cacheDir = Directory('${tmp.path}\\vibe_audio_cache');
+        if (!_cacheDir!.existsSync()) _cacheDir!.createSync(recursive: true);
+      }
+
+      // Use hash of id as filename
+      final safeName = id.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
+      final localFile = File('${_cacheDir!.path}\\$safeName.mp3');
+
+      // If already downloaded, return cached
+      if (await localFile.exists() && await localFile.length() > 10000) {
+        _downloadCache[id] = localFile.path;
+        DebugLog.log('Audio cache hit: ${localFile.path}');
+        return localFile.path;
+      }
+
+      DebugLog.log('Audio downloading: $url');
+      final client = HttpClient();
+      client.findProxy = (_) => 'DIRECT';
+      client.connectionTimeout = const Duration(seconds: 15);
+      final request = await client.getUrl(Uri.parse(url));
+      final response = await request.close().timeout(const Duration(seconds: 30));
+
+      if (response.statusCode != 200) {
+        DebugLog.log('Audio download HTTP ${response.statusCode}');
+        return null;
+      }
+
+      final bytes = await consolidateHttpClientResponseBytes(response);
+      await localFile.writeAsBytes(bytes);
+      _downloadCache[id] = localFile.path;
+      DebugLog.log('Audio downloaded: ${localFile.path} (${bytes.length} bytes)');
+      return localFile.path;
+    } catch (e) {
+      DebugLog.log('Audio download error: $e');
+      return null;
+    }
+  }
+
+  /// Helper: read full HttpClientResponse body into bytes
+  static Future<List<int>> consolidateHttpClientResponseBytes(HttpClientResponse response) {
+    final completer = Completer<List<int>>();
+    final contents = <int>[];
+    response.listen(
+      contents.addAll,
+      onDone: () => completer.complete(contents),
+      onError: completer.completeError,
+      cancelOnError: true,
+    );
+    return completer.future;
   }
 
   Future<void> dispose() async { try { await _player.dispose(); } catch (_) {} }
