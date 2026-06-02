@@ -1,8 +1,9 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/services/netease_service.dart';
 import '../providers/netease_provider.dart';
 import 'audio_provider.dart';
+import '../core/services/floating_lyrics_service.dart';
 
 class LyricsState {
   final List<NeteaseLyricLine> lines;
@@ -68,6 +69,7 @@ class LyricsNotifier extends Notifier<LyricsState> {
   Future<void> _fetchLyrics(String trackId) async {
     if (trackId.isEmpty) return;
     state = state.copyWith(isLoading: true, error: null, lines: [], currentLineIndex: -1);
+    FloatingLyricsService.setText('');
     try {
       final netease = ref.read(neteaseServiceProvider);
       final songId = int.tryParse(trackId.replaceFirst('netease_', ''));
@@ -77,6 +79,8 @@ class LyricsNotifier extends Notifier<LyricsState> {
       }
       final lines = await netease.getLyrics(songId);
       state = state.copyWith(lines: lines, isLoading: false);
+      // Sync with current position immediately
+      _syncCurrentLine();
     } catch (e) {
       state = state.copyWith(isLoading: false, error: 'Failed to load lyrics');
     }
@@ -94,7 +98,31 @@ class LyricsNotifier extends Notifier<LyricsState> {
     }
     if (idx != state.currentLineIndex) {
       state = state.copyWith(currentLineIndex: idx);
+      // Push to floating lyrics window
+      _pushFloatingLyrics(idx);
     }
+  }
+
+  void _pushFloatingLyrics(int idx) {
+    final lines = state.lines;
+    if (idx >= 0 && idx < lines.length) {
+      FloatingLyricsService.setText(lines[idx].text);
+    } else {
+      FloatingLyricsService.setText('');
+    }
+  }
+
+  void _syncCurrentLine() {
+    final audio = ref.read(audioServiceProvider);
+    final position = audio.position;
+    final lines = state.lines;
+    if (lines.isEmpty) return;
+    int idx = -1;
+    for (int i = lines.length - 1; i >= 0; i--) {
+      if (position >= lines[i].time) { idx = i; break; }
+    }
+    state = state.copyWith(currentLineIndex: idx);
+    _pushFloatingLyrics(idx);
   }
 
   void seekToLine(int index) {

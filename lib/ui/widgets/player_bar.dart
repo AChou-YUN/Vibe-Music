@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
@@ -6,6 +6,8 @@ import '../../core/constants/app_constants.dart';
 import '../../core/utils/format_utils.dart';
 import '../../data/services/audio_player_service.dart';
 import '../../providers/audio_provider.dart';
+import '../../core/services/floating_lyrics_service.dart';
+import '../../providers/lyrics_provider.dart';
 
 class PlayerBar extends ConsumerWidget {
   const PlayerBar({super.key});
@@ -18,6 +20,8 @@ class PlayerBar extends ConsumerWidget {
     final isPlayingAsync = ref.watch(isPlayingProvider);
     final track = audio.currentTrack;
     final playMode = ref.watch(playModeProvider);
+    // Keep lyrics notifier alive for floating lyrics sync
+    ref.watch(lyricsNotifierProvider);
 
     final position = positionAsync.value ?? Duration.zero;
     final duration = durationAsync.value ?? Duration.zero;
@@ -136,6 +140,8 @@ class PlayerBar extends ConsumerWidget {
                   tooltip: 'Lyrics',
                   onPressed: () => context.push('/lyrics'),
                 ),
+                // Floating lyrics toggle
+                _FloatingLyricsButton(),
                 // Queue button
                 IconButton(
                   icon: const Icon(Icons.queue_music_rounded, size: 18),
@@ -144,16 +150,7 @@ class PlayerBar extends ConsumerWidget {
                   onPressed: () => _showQueue(context, ref),
                 ),
                 // Volume
-                SizedBox(
-                  width: 80,
-                  child: SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 3),
-                      trackHeight: 2,
-                    ),
-                    child: Slider(value: audio.volume, onChanged: (v) => audio.setVolume(v)),
-                  ),
-                ),
+                _VolumeSlider(audio: audio),
                 const SizedBox(width: 16),
               ],
             ),
@@ -225,5 +222,78 @@ void _showQueue(BuildContext context, WidgetRef ref) {
       ),
     ),
   );
+}
+
+class _VolumeSlider extends StatefulWidget {
+  final AudioPlayerService audio;
+  const _VolumeSlider({required this.audio});
+  @override
+  State<_VolumeSlider> createState() => _VolumeSliderState();
+}
+
+class _VolumeSliderState extends State<_VolumeSlider> {
+  late double _vol;
+
+  @override
+  void initState() {
+    super.initState();
+    _vol = widget.audio.volume;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 80,
+      child: SliderTheme(
+        data: SliderTheme.of(context).copyWith(
+          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 3),
+          trackHeight: 2,
+        ),
+        child: Slider(
+          value: _vol,
+          onChanged: (v) {
+            setState(() => _vol = v);
+            widget.audio.setVolume(v);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _FloatingLyricsButton extends StatefulWidget {
+  const _FloatingLyricsButton();
+  @override
+  State<_FloatingLyricsButton> createState() => _FloatingLyricsButtonState();
+}
+
+class _FloatingLyricsButtonState extends State<_FloatingLyricsButton> {
+  bool _active = false;
+
+  @override
+  void initState() {
+    super.initState();
+    FloatingLyricsService.onClosed = () {
+      if (mounted) setState(() => _active = false);
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(
+        _active
+            ? Icons.picture_in_picture_rounded
+            : Icons.picture_in_picture_alt_rounded,
+        size: 18,
+      ),
+      color: _active ? AppColors.accent : AppColors.textSecondary,
+      tooltip: 'Floating Lyrics',
+      onPressed: () {
+        FloatingLyricsService.toggle();
+        setState(() => _active = FloatingLyricsService.isVisible);
+      },
+    );
+  }
 }
 

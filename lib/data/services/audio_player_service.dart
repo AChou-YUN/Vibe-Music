@@ -126,6 +126,7 @@ class AudioPlayerService {
           DebugLog.log('Seek failed: $e');
         }
       }
+      await _player.setVolume(_volume);
       DebugLog.log('Silent load OK');
     } catch (e) {
       DebugLog.log('Silent load error: $e');
@@ -339,6 +340,7 @@ class AudioPlayerService {
       } else {
         await _player.play(DeviceFileSource(path));
       }
+      await _player.setVolume(_volume);
       _errorCount = 0;
       _saveCurrentTrack();
       if (onTrackPlayed != null) onTrackPlayed!(track);
@@ -352,7 +354,7 @@ class AudioPlayerService {
 
   Future<void> setVolume(double v) async {
     _volume = v.clamp(0.0, 1.0);
-    await _player.setVolume(_volume);
+    try { await _player.setVolume(_volume); } catch (_) {}
   }
 
   // Cache directory for downloaded audio files

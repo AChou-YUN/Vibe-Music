@@ -34,6 +34,10 @@
 | 2026-06-01 | Hive 文件锁崩溃 | 改用 TEMP 目录存储 |
 | 2026-06-01 | nuget SSL 下载失败 | Dart HttpClient 手动下载 |
 | 2026-06-01 | 隐藏启动崩溃 | 避免 -WindowStyle Hidden |
+| 2026-06-02 | GetModuleHandleW 查找错误 | 改用 kernel32.dll |
+| 2026-06-02 | 悬浮歌词切歌不同步 | 保持 lyricsNotifierProvider 常驻 |
+| 2026-06-02 | 暂停状态音量条失效 | try-catch + StatefulWidget |
+| 2026-06-02 | 悬浮歌词按钮无反应 | 改用 StatefulWidget |
 
 ## 2026-06-01: WMF 无法播放外部音频 URL (80072EFD)
 
@@ -64,3 +68,31 @@ uget.exe 和 Microsoft.Windows.ImplementationLibrary nupkg，放置到 build 缓
 **表现**: 应用启动后 20-30 秒内静默退出，无错误输出。
 **根因**: Flutter 引擎依赖有效的窗口句柄，-WindowStyle Hidden 导致窗口管理器无法正确初始化。
 **规避**: 直接双击 exe 或从项目根目录通过 Start-Process 启动（不使用 -WindowStyle Hidden）。
+
+## 2026-06-02: 悬浮歌词窗口初始化失败 — GetModuleHandleW 查找错误
+
+**问题**: GetModuleHandleW 属于 kernel32.dll，但代码中错误地从 user32.dll 查找。
+**表现**: Failed to lookup symbol 'GetModuleHandleW': The specified procedure could not be found.
+**修复**: 改为 _kernel32.lookupFunction。
+**文件**: lib/core/services/floating_lyrics_service.dart
+
+## 2026-06-02: 悬浮歌词切歌不同步
+
+**问题**: lyricsNotifierProvider 是懒加载的 NotifierProvider，只在歌词页被 ef.watch 激活。歌词页关闭后 Notifier 休眠，ef.listen(currentTrackProvider) 不触发，悬浮窗歌词不更新。
+**表现**: 切歌或拖动进度条后悬浮歌词仍显示上一首，必须手动打开歌词页才能刷新。
+**修复**: 在 PlayerBar 的 uild 中加入 ef.watch(lyricsNotifierProvider) 保持 Notifier 常驻。同时在 _fetchLyrics 中清空悬浮文字，加载完成后立即 _syncCurrentLine 同步当前位置。
+**文件**: lib/ui/widgets/player_bar.dart, lib/providers/lyrics_provider.dart
+
+## 2026-06-02: 暂停状态音量条无法拖动
+
+**问题**: udioplayers 在无活跃音源时调用 setVolume 会抛异常，导致 Slider 的 onChanged 失败。
+**表现**: 暂停/停止状态下拖动音量条无反应，播放后才跳到新位置。
+**修复**: setVolume 加 	ry-catch 容错；_playCurrent 和 _loadCurrentSilent 播放开始时自动应用已存储音量；音量 Slider 改为独立 StatefulWidget 管理本地状态。
+**文件**: lib/data/services/audio_player_service.dart, lib/ui/widgets/player_bar.dart
+
+## 2026-06-02: 悬浮歌词按钮点击无反应
+
+**问题**: FloatingLyricsService.isVisible 是静态变量，不会触发 Riverpod 重建。(context as Element).markNeedsBuild() 在 ConsumerWidget 中无效。
+**表现**: 点击 PiP 按钮后图标不变、窗口不弹出。
+**修复**: 将按钮改为独立 StatefulWidget (_FloatingLyricsButton)，用 setState 管理激活状态。
+**文件**: lib/ui/widgets/player_bar.dart

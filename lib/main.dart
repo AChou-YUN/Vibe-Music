@@ -7,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 import 'app.dart';
 import 'core/theme/app_theme.dart';
 import 'core/services/backend_service.dart';
+import 'core/services/floating_lyrics_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -73,6 +74,7 @@ class _VibeMusicAppState extends State<VibeMusicApp> with WidgetsBindingObserver
 
   @override
   void onWindowClose() {
+    FloatingLyricsService.dispose();
     BackendService.stop();
     windowManager.destroy();
   }
