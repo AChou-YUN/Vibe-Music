@@ -98,7 +98,6 @@ class PlayerBar extends ConsumerWidget {
                       ),
                     ),
                     IconButton(icon: const Icon(Icons.skip_next_rounded, size: 22), color: AppColors.textSecondary, onPressed: () => audio.next()),
-                    IconButton(icon: const Icon(Icons.stop_rounded, size: 18), color: AppColors.textDisabled, onPressed: () => audio.stop()),
                   ],
                 ),
                 const SizedBox(width: 16),
