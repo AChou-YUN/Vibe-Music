@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1A1A2E"/><stop offset="100%" stop-color="#0D1B2A"/></linearGradient>
+    <linearGradient id="wave" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#FF6B35" stop-opacity="0.4"/><stop offset="50%" stop-color="#FF6B35"/><stop offset="100%" stop-color="#FF6B35" stop-opacity="0.4"/></linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
+  <text x="512" y="560" text-anchor="middle" font-family="Arial" font-weight="900" font-size="540" fill="#FF6B35" letter-spacing="-10">V</text>
+  <polyline points="200,800 280,770 360,810 440,740 520,700 600,730 680,780 760,750 840,800" fill="none" stroke="url(#wave)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="200,840 280,820 360,850 440,790 520,760 600,780 680,830 760,810 840,840" fill="none" stroke="url(#wave)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+</svg>

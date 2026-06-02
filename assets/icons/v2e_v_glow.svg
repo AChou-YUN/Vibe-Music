@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#0D1B2A"/><stop offset="100%" stop-color="#1B2838"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="20" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <linearGradient id="bar" x1="0%" y1="100%" x2="0%" y2="0%"><stop offset="0%" stop-color="#FF6B35"/><stop offset="100%" stop-color="#FFB347"/></linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
+  <text x="512" y="570" text-anchor="middle" font-family="Arial" font-weight="900" font-size="540" fill="#FF6B35" letter-spacing="-10" filter="url(#glow)">V</text>
+  <rect x="290" y="760" width="48" height="70" rx="24" fill="url(#bar)" opacity="0.6"/>
+  <rect x="400" y="720" width="48" height="110" rx="24" fill="url(#bar)" opacity="0.8"/>
+  <rect x="510" y="690" width="48" height="140" rx="24" fill="url(#bar)"/>
+  <rect x="620" y="730" width="48" height="100" rx="24" fill="url(#bar)" opacity="0.8"/>
+  <rect x="730" y="760" width="48" height="70" rx="24" fill="url(#bar)" opacity="0.6"/>
+</svg>

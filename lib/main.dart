@@ -2,12 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'dart:io';
 import 'package:window_manager/window_manager.dart';
 import 'app.dart';
 import 'core/theme/app_theme.dart';
 import 'core/services/backend_service.dart';
 import 'core/services/floating_lyrics_service.dart';
+import 'ui/widgets/vibe_icon_painter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -151,14 +151,11 @@ class _SplashScreen extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 80, height: 80,
-              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
-              child: const Icon(Icons.music_note_rounded, size: 40, color: AppColors.accent),
-            ),
-            const SizedBox(height: 24),
+            // App icon — matches the actual .ico
+            const VibeIcon(size: 96),
+            const SizedBox(height: 20),
             const Text('Vibe Music', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
             if (!failed)
               const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent))
             else

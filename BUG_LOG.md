@@ -96,3 +96,26 @@ uget.exe 和 Microsoft.Windows.ImplementationLibrary nupkg，放置到 build 缓
 **表现**: 点击 PiP 按钮后图标不变、窗口不弹出。
 **修复**: 将按钮改为独立 StatefulWidget (_FloatingLyricsButton)，用 setState 管理激活状态。
 **文件**: lib/ui/widgets/player_bar.dart
+
+## 2026-06-02: App icon V与波纹重叠 + 初始化页无图标
+
+**问题**: 
+1. 实际 .ico 文件中 V 字母与下方音乐波纹条重叠，视觉不协调
+2. 初始化/启动页面使用的是 Flutter 默认 Icons.music_note_rounded，没有显示实际应用图标
+
+**根因**: 
+1. SVG 中 V 的 baseline 在 y=565，波纹起始在 y=695，但 V 的实际下沿会延伸到 ~y=665（字体 descent），导致间距只有 ~30px，视觉上重叠
+2. splash screen 没有导入实际图标文件，直接用了 Material Icons
+
+**方案**:
+1. 将 V 的 baseline 上移至 y=500，波纹下移至 y=790+，确保 ~250px 间距
+2. 创建 VibeIconPainter CustomPaint widget (lib/ui/widgets/vibe_icon_painter.dart)，用 Flutter Canvas 直接绘制图标（暗色圆角方块 + 橙色 V + 光晕 + 7 条音乐波纹）
+3. 在 _SplashScreen 中用 VibeIcon(size: 96) 替换 Icons.music_note_rounded
+4. 使用 Dart image 包重新生成 pp_icon.ico（	ool/gen_icon.dart），修正 V 与波纹间距
+
+**文件**:
+- lib/ui/widgets/vibe_icon_painter.dart（新增）
+- lib/main.dart（修改 splash screen）
+- ssets/icons/final_ae_warm.svg（修正 V 和 bars 位置）
+- 	ool/gen_icon.dart（新增，.ico 生成脚本）
+- windows/runner/resources/app_icon.ico（重新生成）
